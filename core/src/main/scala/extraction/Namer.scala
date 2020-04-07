@@ -10,12 +10,11 @@ import Namer._
 
 class Namer(implicit val rc: RunContext) extends Phase[Int] {
 
-  def transform(t: Tree): (Tree, Int) = Namer.namer(t, builtInMap, 0)
+  def transform(t: Tree): (Tree, Int) = Namer.namer(t, Map(), 1)
 
 }
 
 object Namer {
-  val builtInMap = BuiltInIdentifiers.builtInIdentifiers.map(id => Identifier(0, id) -> Identifier(0, id)).toMap
 
   def namer(t: Tree, m: Map[Identifier, Identifier], max: Int): (Tree, Int) = {
     t match {
@@ -31,7 +30,7 @@ object Namer {
       case Error(_, None) => (t, max)
       case Var(id) =>
         m.get(id) match {
-          case None => (Var(id), max)//throw new java.lang.Exception(s"Error in name resolution: undefined variable $id at position ${t.pos}")
+          case None => (Var(id), max)
           case Some(newId) => (Var(newId), max)
         }
       case IfThenElse(cond, t1, t2) =>
