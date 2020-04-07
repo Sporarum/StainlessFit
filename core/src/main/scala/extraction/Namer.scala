@@ -31,7 +31,7 @@ object Namer {
       case Error(_, None) => (t, max)
       case Var(id) =>
         m.get(id) match {
-          case None => throw new java.lang.Exception(s"Error in name resolution: undefined variable $id at position ${t.pos}")
+          case None => (Var(id), max)//throw new java.lang.Exception(s"Error in name resolution: undefined variable $id at position ${t.pos}")
           case Some(newId) => (Var(newId), max)
         }
       case IfThenElse(cond, t1, t2) =>

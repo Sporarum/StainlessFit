@@ -6,6 +6,7 @@ import java.io.File
 sealed abstract class Mode
 object Mode {
   case object Eval      extends Mode
+  case object PartEval      extends Mode
   case object TypeCheck extends Mode
 }
 

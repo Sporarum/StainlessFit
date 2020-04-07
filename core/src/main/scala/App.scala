@@ -35,6 +35,7 @@ class App()(implicit rc: RunContext) {
     rc.config.mode match {
       case Mode.Eval      => eval()
       case Mode.TypeCheck => typeCheck()
+      case Mode.PartEval  => partEval()
     }
   }
 
@@ -42,6 +43,17 @@ class App()(implicit rc: RunContext) {
     Core.evalFile(file) match {
       case Left(error) =>
         rc.reporter.error(s"Error during evaluation: $error")
+        false
+      case Right(value) =>
+        Printer.exprInfo(value)
+        true
+    }
+  }
+
+  def partEval(): Unit = FileWatcher.watchable(file) {
+    Core.partEvalFile(file) match {
+      case Left(error) =>
+        rc.reporter.error(s"Error during partial evaluation: $error")
         false
       case Right(value) =>
         Printer.exprInfo(value)

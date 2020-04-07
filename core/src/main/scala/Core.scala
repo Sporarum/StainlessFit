@@ -12,6 +12,7 @@ import parser.FitLexer
 import java.io.File
 
 import core.util.RunContext
+import stainlessfit.core.partialEvaluator.PartialEvaluator
 
 object Core {
 
@@ -54,6 +55,15 @@ object Core {
       }
     }
 
+  def partEvalFile(f: File)(implicit rc: RunContext): Either[String, Tree] =
+    parseFile(f) flatMap { src =>
+
+      val (t, _) = extraction.evalPipeline.transform(src)
+
+      Right(PartialEvaluator.evaluate(t))
+      //Can't fail ?
+    }
+
   def typeCheckFile(f: File)(implicit rc: RunContext): Either[String, (Boolean, NodeTree[Judgment])] = {
     parseFile(f) flatMap { src =>
 
@@ -74,6 +84,9 @@ object Core {
 
   def evalFile(s: String)(implicit rc: RunContext): Either[String, Tree] =
     evalFile(new File(s))
+
+  def partEvalFile(s: String)(implicit rc: RunContext): Either[String, Tree] =
+    partEvalFile(new File(s))
 
   def typeCheckFile(s: String)(implicit rc: RunContext): Either[String, (Boolean, NodeTree[Judgment])] =
     typeCheckFile(new File(s))
