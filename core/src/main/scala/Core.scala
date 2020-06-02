@@ -14,6 +14,7 @@ import extraction._
 import java.io.File
 
 import core.util.RunContext
+import stainlessfit.core.partialEvaluator.PartialEvaluator
 
 import scala.sys.process._
 
@@ -72,6 +73,14 @@ object Core {
       case _: Throwable => false
     }
   }
+  def partEvalFile(f: File)(implicit rc: RunContext): Either[String, Tree] =
+    parseFile(f) flatMap { src =>
+
+      val (t, _) = extraction.evalPipeline.transform(src)
+
+      Right(PartialEvaluator.evaluate(t))
+      //Can't fail ?
+    }
 
   def typeCheckFile(f: File)(implicit rc: RunContext): Either[String, (Boolean, NodeTree[Judgment])] = {
     if (hasZ3()) {
