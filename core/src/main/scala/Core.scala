@@ -6,26 +6,31 @@ import core.interpreter._
 import core.typechecker._
 import core.typechecker.Derivation._
 
-import parser.ScalaParser
-import parser.ScalaLexer
+import parser.FitParser
+import parser.FitLexer
+
+import extraction._
 
 import java.io.File
 
 import core.util.RunContext
 
+import scala.sys.process._
+
 object Core {
 
-  def parseString(s: String): Either[String, Tree] = {
+  def parseString(s: String)(implicit rc: RunContext): Either[String, Tree] = {
     val it = s.iterator
-    ScalaParser(ScalaLexer(it)) match {
-      case ScalaParser.LL1.Parsed(value, _) =>
+
+    rc.parser(FitLexer(it)) match {
+      case rc.parser.LL1.Parsed(value, _) =>
         Right(value)
-      case ScalaParser.LL1.UnexpectedEnd(rest) =>
+      case rc.parser.LL1.UnexpectedEnd(rest) =>
         Left(
           s"""|Error during parsing, unexpected end of input.
               |Expected token: ${rest.first.mkString("   ")}""".stripMargin
         )
-      case ScalaParser.LL1.UnexpectedToken(t, rest) =>
+      case rc.parser.LL1.UnexpectedToken(t, rest) =>
         Left(
           s"""|Error during parsing, unexpected token at position ${t.pos}: $t
               |Expected token: ${rest.first.mkString("   ")}""".stripMargin
@@ -33,7 +38,7 @@ object Core {
     }
   }
 
-  def parseFile(rc: RunContext, f: File): Either[String, Tree] = {
+  def parseFile(f: File)(implicit rc: RunContext): Either[String, Tree] = {
     val s = scala.io.Source.fromFile(f).getLines.mkString("\n")
     val regex = """Include\("(.*)"\)""".r
     val completeString = regex.replaceAllIn(s, m =>
@@ -42,58 +47,83 @@ object Core {
     rc.bench.time("Scallion parsing") { parseString(completeString) }
   }
 
-  val primitives = Map(
-    Identifier(0, "size") -> Identifier(0, "size"),
-    Identifier(0, "left") -> Identifier(0, "left"),
-    Identifier(0, "right") -> Identifier(0, "right"),
-    Identifier(0, "first") -> Identifier(0, "first"),
-    Identifier(0, "second") -> Identifier(0, "second"),
-  )
-
-  def replacePrimitives(t: Tree): Tree = {
-    t.replaceMany(subTree => subTree match {
-      case App(Var(Identifier(0, "size")), e) => Some(Size(e))
-      case App(Var(Identifier(0, "left")), e) => Some(LeftTree(e))
-      case App(Var(Identifier(0, "right")), e) => Some(RightTree(e))
-      case App(Var(Identifier(0, "first")), e) => Some(First(e))
-      case App(Var(Identifier(0, "second")), e) => Some(Second(e))
-      case _ => None
-    })
-  }
-
   def evalFile(f: File)(implicit rc: RunContext): Either[String, Tree] =
-    parseFile(rc, f) flatMap { src =>
-      val (t1, _) = Tree.setId(src, primitives, 0)
-      val t2 = replacePrimitives(t1)
+    parseFile(f) flatMap { src =>
 
-      Interpreter.evaluate(t2.erase()) match {
+      val pipeline =
+        DebugPhase(new DefFunctionElimination(), "DefFunctionElimination") andThen
+        DebugPhase(new Namer(), "Namer") andThen
+        DebugPhase(new BuiltInIdentifiers(), "BuiltInIdentifiers") andThen
+        DebugPhase(new Erasure(), "Erasure")
+
+      val (t, _) = pipeline.transform(src)
+
+      Interpreter.evaluate(t) match {
         case Error(error, _) => Left(error)
         case v => Right(v)
       }
     }
 
-  def typeCheckFile(f: File, html: Boolean)(implicit rc: RunContext): Either[String, (Boolean, NodeTree[Judgment])] = {
-    parseFile(rc, f) flatMap { src =>
-      val (t1, max) = Tree.setId(src, primitives, 0)
-      val t2 = replacePrimitives(t1)
+  def hasZ3(): Boolean = {
+    try {
+      "z3 --version".!(ProcessLogger(_ => ()))
+      true
+    } catch {
+      case _: Throwable => false
+    }
+  }
 
-      new TypeChecker().infer(t2, max) match {
+  def typeCheckFile(f: File)(implicit rc: RunContext): Either[String, (Boolean, NodeTree[Judgment])] = {
+    if (hasZ3()) {
+      parseFile(f) flatMap { src =>
+
+        val pipeline =
+          DebugPhase(new DefFunctionElimination(), "DefFunctionElimination") andThen
+          DebugPhase(new FixIndexing(), "FixIndexing") andThen
+          DebugPhase(new Namer(), "Namer") andThen
+          DebugPhase(new BuiltInIdentifiers(), "BuiltInIdentifiers")
+
+        val (t, _) = pipeline.transform(src)
+
+        rc.bench.time("Type Checking") { new TypeChecker().infer(t) } match {
+          case None => Left(s"Could not typecheck: $f")
+          case Some((success, tree)) =>
+            if (rc.config.html)
+              rc.bench.time("makeHTMLFile") {
+                util.HTMLOutput.makeHTMLFile(f, List(tree), success)
+              }
+
+            Right((success, tree))
+        }
+      }
+    } else {
+      Left("The z3 solver is required for the typecheck command")
+    }
+  }
+
+  def sDepFile(f: File)(implicit rc: RunContext): Either[String, (Boolean, NodeTree[Judgment])] = {
+    parseFile(f) flatMap { src =>
+
+      val pipeline =
+        DebugPhase(new DefFunctionElimination(), "DefFunctionElimination") andThen
+        DebugPhase(new FixIndexing(), "FixIndexing") andThen
+        DebugPhase(new Namer(), "Namer") andThen
+        DebugPhase(new BuiltInIdentifiers(), "BuiltInIdentifiers") andThen
+        DebugPhase(new ChooseEncoding(), "ChooseEncoding")
+
+      val (t, _) = pipeline.transform(src)
+
+      rc.bench.time("SDep") { new SDep().infer(t) } match {
         case None => Left(s"Could not typecheck: $f")
         case Some((success, tree)) =>
-          if (html)
+          if (rc.config.html)
             rc.bench.time("makeHTMLFile") {
-              util.HTMLOutput.makeHTMLFile(rc, f, List(tree), success)
+              util.HTMLOutput.makeHTMLFile(f, List(tree), success)
             }
 
           Right((success, tree))
       }
     }
   }
-
-  def evalFile(s: String)(implicit rc: RunContext): Either[String, Tree] =
-    evalFile(new File(s))
-
-  def typeCheckFile(s: String, html: Boolean)(implicit rc: RunContext): Either[String, (Boolean, NodeTree[Judgment])] =
-    typeCheckFile(new File(s), html)
 
 }

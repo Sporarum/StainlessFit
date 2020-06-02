@@ -5,6 +5,9 @@ package util
 class RunContext(val config: Config) {
   val reporter = new Reporter(config.colors, config.info)
   val bench = new Bench()
+  val parser = new core.parser.FitParser()(this)
+  val exprPrinter = parser.PrettyPrinter(parser.expr)
+  val typePrinter = parser.PrettyPrinter(parser.typeExpr)
   bench.start()
 
   def debugEnabled(ds: DebugSection): Boolean =

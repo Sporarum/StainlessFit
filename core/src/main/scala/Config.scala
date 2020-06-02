@@ -7,6 +7,7 @@ sealed abstract class Mode
 object Mode {
   case object Eval      extends Mode
   case object TypeCheck extends Mode
+  case object SDep  extends Mode
 }
 
 case class Config(
@@ -19,6 +20,8 @@ case class Config(
   colors: Boolean                  = true,
   verbose: Boolean                 = false,
   info: Boolean                    = true,
+  printUniqueIds: Boolean          = false,
+  printUnderlying: Boolean         = false,
   debugSections: Set[DebugSection] = Set.empty,
 )
 

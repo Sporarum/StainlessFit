@@ -9,20 +9,20 @@ import util.Utils._
 
 import Derivation._
 
-trait TypeCheckerControlRules {
+trait ControlRules {
 
-  val rc: RunContext
+  implicit val rc: RunContext
 
   val FailRule = Rule("FailRule", {
     g => Some((List(), _ =>
-      emitErrorWithJudgment(rc, "FailRule", g, Some("Goal is not handled"))
+      emitErrorWithJudgment("FailRule", g, Some("Goal is not handled"))
     ))
   })
 
   val CatchErrorGoal = Rule("CatchErrorGoal", {
     case g @ ErrorGoal(c, s) =>
       Some((List(), _ => {
-        emitErrorWithJudgment(rc, "CatchErrorGoal", g, s)
+        emitErrorWithJudgment("CatchErrorGoal", g, s)
       }))
     case g =>
       None

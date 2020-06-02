@@ -24,9 +24,6 @@ object ConfigParser {
       programName("stainless-fit"),
       head("StainlessFit", BuildInfo.version),
       help("help").text("Prints help information"),
-      opt[Unit]("verbose")
-        .action((_, c) => c.copy(verbose = true))
-        .text("Enable verbose output"),
       opt[Seq[DebugSection]]("debug")
         .action((ds, c) => c.copy(debugSections = ds.toSet))
         .text(s"Enable debugging information (available: ${DebugSection.available.mkString(", ")})"),
@@ -48,6 +45,12 @@ object ConfigParser {
       opt[Unit]("no-info")
         .action((_, c) => c.copy(info = false))
         .text("Disable [INFO] prefix in output"),
+      opt[Unit]("print-ids")
+        .action((_, c) => c.copy(printUniqueIds = true))
+        .text("Print unique identifiers"),
+      opt[Unit]("print-underlying")
+        .action((_, c) => c.copy(printUnderlying = true))
+        .text("Print underlying types of singleton types"),
 
       note(""),
       cmd("eval")
@@ -71,10 +74,25 @@ object ConfigParser {
             .text("The file to typecheck, in `sf` format")
         ),
 
+      note(""),
+      cmd("sdep")
+        .action((_, c) => c.copy(mode = Mode.SDep))
+        .text("Typecheck the given file using experimental dependent types in Scala algorithm")
+        .children(
+          arg[File]("<file>")
+            .required()
+            .action((f, c) => c.copy(file = f))
+            .text("The file to typecheck, in `sf` format")
+        ),
+
       checkConfig {
-        case c if c.mode == null => failure("Please specify a command: eval, typecheck")
+        case c if c.mode == null => failure("Please specify a command: eval, typecheck, or sdep")
         case c if c.file != null && !c.file.exists => failure(s"File not found: ${c.file}")
-        case _ => success
+        case c =>
+          c.debugSections.find(!DebugSection.available(_)) match {
+            case None => success
+            case Some(section) => failure(s"$section is not a valid debug section")
+          }
       }
     )
   }

@@ -2,7 +2,6 @@ package stainlessfit
 package core
 package typechecker
 
-
 import core.trees._
 
 import util.RunContext
@@ -10,9 +9,9 @@ import util.Utils._
 
 import Derivation._
 
-trait TypeCheckerMetaRules {
+trait MetaRules {
 
-  val rc: RunContext
+  implicit val rc: RunContext
 
   // This functions returns:
   // * `None` when `inst` is not a macro instantiation corresponding to `id`
@@ -54,12 +53,12 @@ trait TypeCheckerMetaRules {
 
   val InferMacroTypeDecl = Rule("InferMacroTypeDecl", {
     case g @ InferGoal(c, t @ MacroTypeDecl(tp, Bind(id, rest))) =>
-      TypeChecker.debugs(rc, g, "InferMacroTypeDecl")
+      TypeChecker.debugs(g, "InferMacroTypeDecl")
       inlineMacro(tp, id, rest) match {
         case Left(error) =>
           Some((
             List(),
-            _ => emitErrorWithJudgment(rc, "InferMacroTypeDecl", g, Some(error))
+            _ => emitErrorWithJudgment("InferMacroTypeDecl", g, Some(error))
           ))
         case Right(inlined) =>
           Some((
@@ -67,7 +66,7 @@ trait TypeCheckerMetaRules {
               case InferJudgment(_, _, _, ty) :: _ =>
                 (true, InferJudgment("InferMacroTypeDecl", c, t, ty))
               case _ =>
-                emitErrorWithJudgment(rc, "InferMacroTypeDecl", g, None)
+                emitErrorWithJudgment("InferMacroTypeDecl", g, None)
             }
           ))
       }

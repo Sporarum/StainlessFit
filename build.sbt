@@ -3,7 +3,7 @@ enablePlugins(GitVersioning)
 git.useGitDescribe := true
 
 ThisBuild / organization := "ch.epfl.lara"
-ThisBuild / scalaVersion := "2.13.1"
+ThisBuild / scalaVersion := "2.13.2"
 
 ThisBuild / resolvers ++= Seq(
   Resolver.bintrayRepo("epfl-lara", "maven")
@@ -22,10 +22,8 @@ lazy val core = project
   .in(file("core"))
   .settings(
     name := "stainless-fit",
-    assemblyJarName in assembly := "fit.jar",
-    test in assembly := {},
     libraryDependencies ++= Seq(
-      "org.scalatest" %% "scalatest" % "3.0.8" % "test",
+      "org.scalatest" %% "scalatest" % "3.1.2" % "test",
     ),
     Test / fork := true,
     Test / baseDirectory := (ThisBuild / baseDirectory).value,
@@ -39,7 +37,7 @@ lazy val cli = project
   .enablePlugins(JavaAppPackaging, BuildInfoPlugin)
   .dependsOn(core)
   .settings(
-    name := "stainless-fit-cli",
+    name := "fit",
     libraryDependencies ++= Seq(
       "com.github.scopt" %% "scopt" % "4.0.0-RC2",
     ),

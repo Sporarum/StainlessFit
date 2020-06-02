@@ -17,54 +17,65 @@ object HTMLOutput {
   def headerColor(s: String) = color("#002875", s)
   def bold(s: String) = s"<b>$s</b>"
 
-  def shortString(s: String, maxWidth: Int = 90): String = {
+  def shortString(s: String, maxWidth: Int = 900): String = {
     val r = s.replaceAll("\n", " ")
     if (r.length > maxWidth) r.take(maxWidth - 3) + "..."
     else r
   }
 
-  def termOutput(t: Tree): String =
-    termColor(shortString(t.toString))
+  def termOutput(t: Tree)(implicit rc: RunContext): String =
+    termColor(shortString(Printer.exprAsString(t)))
 
-  def typeOutput(t: Tree): String =
-    typeColor(shortString(t.toString))
+  def typeOutput(t: Tree)(implicit rc: RunContext): String =
+    typeColor(shortString(Printer.typeAsString(t)))
 
-  def goalToHTML(g: Goal): String = g match {
+  def goalToHTML(g: Goal)(implicit rc: RunContext): String = g match {
     case EmptyGoal(_) => ""
     case ErrorGoal(_, _) => ""
-    case InferGoal(c, t) => termColor(shortString(t.toString)) + " ⇑ _"
-    case CheckGoal(c, t, tp) =>
-      termColor(shortString(t.toString)) + " ⇓ " + typeColor(shortString(tp.toString))
+    case InferGoal(c, t) => termOutput(t) + " ⇑ _"
+    case CheckGoal(c, t, tp) => termOutput(t) + " ⇓ " + typeOutput(tp)
+    case SubtypeGoal(c, ty1, ty2) => typeOutput(ty1) + s" <: " + typeOutput(ty2)
+    case NormalizedSubtypeGoal(c, ty1, ty2) => typeOutput(ty1) + s" <:‖ " + typeOutput(ty2)
+    case NormalizationGoal(c, ty) => typeOutput(ty) + s" ⇥ ?"
     case SynthesisGoal(c, tp) =>
-      s"_ ⇐ ${typeColor(shortString(tp.toString))}"
+      s"_ ⇐ ${typeOutput(tp)}"
     case EqualityGoal(c, t1, t2) =>
-      termColor(shortString(t1.toString)) + " ≡ " + termColor(shortString(t2.toString))
+      termOutput(t1)+ " ≡ " + termOutput(t2)
   }
 
-  def judgementToHTML(j: Judgment): String = j match {
+  def judgementToHTML(j: Judgment)(implicit rc: RunContext): String = j match {
     case CheckJudgment(name, context, t, tp) =>
       "<span class='check'>" +
         "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
-        termColor(shortString(t.toString)) + " ⇓ " +
-        typeColor(shortString(tp.toString)) +
+        termOutput(t) + " ⇓ " + typeOutput(tp) +
       "</span>"
 
-    case InferJudgment(name, context, e, t) =>
+    case SubtypeJudgment(name, context, ty1, ty2) =>
+      "<span class='sub'>" +
+        "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
+        typeOutput(ty1) + " <: " + typeOutput(ty2) +
+      "</span>"
+
+    case NormalizationJudgment(name, context, ty, tyN) =>
+      "<span class='norm'>" +
+        "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
+        typeOutput(ty) + " ⇥ " + typeOutput(tyN) +
+      "</span>"
+
+    case InferJudgment(name, context, t, tp) =>
       "<span class='infer'>" +
         "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
-        termColor(shortString(e.toString)) + " ⇑ " +
-        typeColor(shortString(t.toString)) +
+        termOutput(t) + " ⇑ " + typeOutput(tp) +
       "</span>"
 
     case AreEqualJudgment(name, context, t1, t2, _) =>
       "<span class='equal'>" +
         "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
-        termColor(shortString(t1.toString)) + " ≡ " +
-        termColor(shortString(t2.toString)) +
+        termOutput(t1) + " ≡ " + termOutput(t2) +
       "</span>"
 
     case SynthesisJudgment(name, context, tp, t) =>
-      s"(${headerColor(context.level.toString)} - ${headerColor(name)}) ⊢ ${typeColor(shortString(t.toString))} ⇐ ${typeColor(shortString(tp.toString))}"
+      s"(${headerColor(context.level.toString)} - ${headerColor(name)}) ⊢ ${typeColor(shortString(t.toString))} ⇐ ${typeOutput(tp)}"
 
     case ErrorJudgment(name, goal, errOpt) =>
       val errorString = errOpt.map(err => s" [ERROR: $err]").mkString
@@ -80,22 +91,22 @@ object HTMLOutput {
       s"(${headerColor(context.level.toString)} - ${headerColor(name)}) ⊢ File ${typeColor(shortString(s))}"
   }
 
-  def nodeTreeToHTML(l: List[NodeTree[Judgment]], depth: Int): String = {
+  def nodeTreeToHTML(l: List[NodeTree[Judgment]], depth: Int)(implicit rc: RunContext): String = {
     val indentation = "  " * depth
     indentation + "<ul>\n" +
       l.map(t => nodeTreeToHTML(t, depth + 1)).mkString("\n") + "\n" +
     indentation + "</ul>"
   }
 
-  def nodeTreeToHTML(t: NodeTree[Judgment], depth: Int): String = {
+  def nodeTreeToHTML(t: NodeTree[Judgment], depth: Int)(implicit rc: RunContext): String = {
     val indentation = "  " * depth
     val childrenString = nodeTreeToHTML(t.children, depth + 1)
-    indentation + s"<li> <span class='node' title='${t.node.context.toString}'> ${judgementToHTML(t.node)} </span>\n" +
+    indentation + s"<li> <span class='node' title='${Printer.asString(t.node.context)}'> ${judgementToHTML(t.node)} </span>\n" +
       childrenString + "\n" +
     indentation + "</li>"
   }
 
-  def makeHTMLFile(rc: RunContext, file: File, trees: List[NodeTree[Judgment]], success: Boolean): Unit = {
+  def makeHTMLFile(file: File, trees: List[NodeTree[Judgment]], success: Boolean)(implicit rc: RunContext): Unit = {
     val htmlFile = new File(file.getAbsolutePath() + ".html")
     val fw = new FileWriter(htmlFile)
     val status = if (success) "Success" else "Failed"
@@ -109,7 +120,9 @@ object HTMLOutput {
     fw.write(s"<title> Type Checking File $name: $status </title>\n")
     fw.write("""|<style>
                 |body {
-                |  font-family: "Fira Code", Menlo, Monaco, monospace
+                |  font-family: "Fira Code", Menlo, Monaco, monospace;
+                |  background-color: white;
+                |  color: black;
                 |}
                 |
                 |.infer {
@@ -134,6 +147,22 @@ object HTMLOutput {
                 |
                 |.equal:hover {
                 |  background-color: #dadba7
+                |}
+                |
+                |.sub {
+                |  background-color: #fff6eb
+                |}
+                |
+                |.sub:hover {
+                |  background-color: #ffe9cf
+                |}
+                |
+                |.norm {
+                |  background-color: #87f542
+                |}
+                |
+                |.norm:hover {
+                |  background-color: #5cd90d
                 |}
                 |
                 |.error {
