@@ -33,9 +33,8 @@ class Namer(implicit val rc: RunContext) extends Phase[Unit] {
 
         case Var(id) =>
           if (m.contains(id)) _ => Var(m(id))
-          else rc.reporter.fatalError(
-            s"Error in name resolution: undefined variable ${id.asString} at position ${t.pos}"
-          )
+          else _ => Var(id) 
+            //rc.reporter.fatalError(s"Error in name resolution: undefined variable ${id.asString} at position ${t.pos}")
 
         case _ => res => res
       }
