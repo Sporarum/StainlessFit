@@ -230,6 +230,22 @@ object Tree {
       case TopType => TopType
     }
   }
+  
+  def replaceAndCount(id: Identifier, v: Tree, body: Tree)(implicit rc: RunContext): (Tree, Int) = {
+    body match {
+      case Var(id2) if id2 == id => (v, 1)
+      case Bind(id2, e) if (id == id2) => (body, 0) //Does this count as a replacement ? it should never happen ....
+      case Bind(id2, e) if (id2.isFreeIn(v)) =>
+        rc.reporter.fatalError(
+          s"""Replacing ${Printer.asString(id)} by ${Printer.asString(v)} in
+          |$body would capture variable ${Printer.asString(id2)}""".stripMargin
+        )
+      case _ => 
+        val res = body.subTrees().map(replaceAndCount(id, v, _))
+        val (transformed, counts) = res.unzip
+        (body.newSubTrees(transformed), counts.fold(0)(_ + _))
+    }
+  }
 
   def traverse(t: Tree, pre: Tree => Unit, post: Tree => Unit): Unit = {
     pre(t)
@@ -865,6 +881,126 @@ object Tree {
       }
     rec(t)
   }
+
+  def subTrees(t: Tree): List[Tree] = {
+    t match {
+      case Var(id) => List()
+      case NatLiteral(n) => List()
+      case Succ(t) => List(t)
+      case UnitLiteral => List()
+      case BooleanLiteral(b) => List()
+      case Bind(id, body) => List(body)
+      case IfThenElse(cond, t1, t2) => List(cond, t1, t2)
+      case Lambda(tp, bind) => List(bind)
+      case DefFunction(args, optRet, optMeasure, body, rest) => ???// List(body, rest) ++ optMeasure.toList ++ optRet.toList 
+      case ErasableLambda(ty, bind) => ???
+      case App(t1, t2) => List(t1, t2)
+      case Pair(t1, t2) => List(t1, t2)
+      case Size(t) => List(t)
+      case First(t) => List(t)
+      case Second(t) => List(t)
+      case Fix(tp, bind) => tp.toList ++ List(bind)
+      case NatMatch(t, t1, t2) => List(t, t1, t2)
+      case EitherMatch(t, t1, t2) => List(t, t1, t2)
+      case LeftTree(t) => List(t)
+      case RightTree(t) => List(t)
+      case LetIn(tp, v, body) => tp.toList ++ List(v, body) 
+      case MacroTypeDecl(tp, body) => List(tp, body)
+      case MacroTypeInst(v, args) => ???
+      case Error(s, t) => t.toList
+      case Primitive(op, args) => args
+      case ErasableApp(t1, t2) => List(t1, t2)
+      case Refl(t1, t2) => List(t1, t2)
+      case Fold(tp, t) => List(tp, t)
+      case Unfold(t, bind) => List(t, bind)
+      case UnfoldPositive(t, bind) => List(t, bind)
+      case Abs(t) => List(t)
+      case TypeApp(t1, t2) => List(t1, t2)
+      case BottomType => List()
+      case TopType => List()
+      case UnitType => List()
+      case BoolType => List()
+      case NatType => List()
+      case SigmaType(t1, t2) => List(t1, t2)
+      case SumType(t1, t2) => List(t1, t2)
+      case PiType(t1, t2) => List(t1, t2)
+      case IntersectionType(t1, t2) => List(t1, t2)
+      case ExistsType(t1, t2) => List(t1, t2)
+      case RefinementType(t1, t2) => List(t1, t2)
+      case RefinementByType(t1, t2) => List(t1, t2)
+      case RecType(n, bind) => List(n, bind)
+      case PolyForallType(t) => List(t)
+      case UnionType(t1, t2) => List(t1, t2)
+      case EqualityType(t1, t2) => List(t1, t2)
+      case Because(t1, t2) => List(t1, t2)
+      case Node(name, children) => children.toList
+    }
+  }
+
+  def newSubTrees(t: Tree, args: List[Tree])(implicit rc: RunContext): Tree = {
+    if(t.subTrees().length != args.length){
+      rc.reporter.fatalError(s"Function `newSubTrees` called with wrong number of arguments.")
+    }else{
+      t match {
+        case Var(id) => t
+        case NatLiteral(n) => t
+        case Succ(t) => Succ(args(0))
+        case UnitLiteral => t
+        case BooleanLiteral(b) => t
+        case Bind(id, body) => Bind(id, args(0))
+        case IfThenElse(cond, t1, t2) => IfThenElse(args(0), args(1), args(2))
+        case Lambda(tp, bind) => Lambda(tp, args(0))
+        case DefFunction(args, optRet, optMeasure, body, rest) => ???// List(body, rest) ++ optMeasure.toList ++ optRet.toList 
+        case ErasableLambda(ty, bind) => ???
+        case App(t1, t2) => App(args(0), args(1))
+        case Pair(t1, t2) => Pair(args(0), args(1))
+        case Size(t) => Size(args(0))
+        case First(t) => First(args(0))
+        case Second(t) => Second(args(0))
+        case Fix(tp, bind) => tp match {
+          case Some(_) => Fix(Some(args(0)),  args(1))
+          case None =>    Fix(None,           args(0))
+        }
+        case NatMatch(t, t1, t2) => NatMatch(args(0), args(1), args(2))
+        case EitherMatch(t, t1, t2) => EitherMatch(args(0), args(1), args(2))
+        case LeftTree(t) => LeftTree(args(0))
+        case RightTree(t) => RightTree(args(0))
+        case LetIn(tp, v, body) => tp match {
+          case Some(value) => LetIn(Some(args(0)),  args(1), args(2))
+          case None =>        LetIn(None,           args(0), args(1))
+        }
+        case MacroTypeDecl(tp, body) => MacroTypeDecl(args(0), args(1))
+        case MacroTypeInst(v, args) => ???
+        case Error(s, t) => Error(s, args.headOption)
+        case Primitive(op, _) => Primitive(op, args)
+        case ErasableApp(t1, t2) => ErasableApp(args(0), args(1))
+        case Refl(t1, t2) => Refl(args(0), args(1))
+        case Fold(tp, t) => Fold(args(0), args(1))
+        case Unfold(t, bind) => Unfold(args(0), args(1))
+        case UnfoldPositive(t, bind) => UnfoldPositive(args(0), args(1))
+        case Abs(t) => Abs(args(0))
+        case TypeApp(t1, t2) => TypeApp(args(0), args(1))
+        case BottomType => t
+        case TopType => t
+        case UnitType => t
+        case BoolType => t
+        case NatType => t
+        case SigmaType(t1, t2) => SigmaType(args(0), args(1))
+        case SumType(t1, t2) => SumType(args(0), args(1))
+        case PiType(t1, t2) => PiType(args(0), args(1))
+        case IntersectionType(t1, t2) => IntersectionType(args(0), args(1))
+        case ExistsType(t1, t2) => ExistsType(args(0), args(1))
+        case RefinementType(t1, t2) => RefinementType(args(0), args(1))
+        case RefinementByType(t1, t2) => RefinementByType(args(0), args(1))
+        case RecType(n, bind) => RecType(args(0), args(1))
+        case PolyForallType(t) => PolyForallType(args(0))
+        case UnionType(t1, t2) => UnionType(args(0), args(1))
+        case EqualityType(t1, t2) => EqualityType(args(0), args(1))
+        case Because(t1, t2) => Because(args(0), args(1))
+        case Node(name, children) => Node(name, args)
+      }
+    }
+  }
 }
 
 case class Identifier(id: Int, name: String) extends Positioned {
@@ -992,6 +1128,9 @@ sealed abstract class Tree extends Positioned {
   def replace(id: Identifier, id2: Identifier)(implicit rc: RunContext): Tree = replace(id, Var(id2))
 
   def erase()(implicit rc: RunContext): Tree = extraction.Erasure.erase(this)
+
+  def subTrees(): List[Tree] = Tree.subTrees(this)
+  def newSubTrees(args: List[Tree])(implicit rc: RunContext) = Tree.newSubTrees(this, args)
 }
 
 case class Var(id: Identifier) extends Tree {
