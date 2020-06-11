@@ -891,7 +891,7 @@ object Tree {
       case BooleanLiteral(b) => List()
       case Bind(id, body) => List(body)
       case IfThenElse(cond, t1, t2) => List(cond, t1, t2)
-      case Lambda(tp, bind) => List(bind)
+      case Lambda(tp, bind) => tp.toList ++ List(bind)
       case DefFunction(args, optRet, optMeasure, body, rest) => ???// List(body, rest) ++ optMeasure.toList ++ optRet.toList 
       case ErasableLambda(ty, bind) => ???
       case App(t1, t2) => List(t1, t2)
@@ -949,7 +949,10 @@ object Tree {
         case BooleanLiteral(b) => t
         case Bind(id, body) => Bind(id, args(0))
         case IfThenElse(cond, t1, t2) => IfThenElse(args(0), args(1), args(2))
-        case Lambda(tp, bind) => Lambda(tp, args(0))
+        case Lambda(tp, bind) => tp match {
+          case Some(value) => Lambda(Some(args(0)), args(1))
+          case None => Lambda(None, args(0))
+        }
         case DefFunction(args, optRet, optMeasure, body, rest) => ???// List(body, rest) ++ optMeasure.toList ++ optRet.toList 
         case ErasableLambda(ty, bind) => ???
         case App(t1, t2) => App(args(0), args(1))
