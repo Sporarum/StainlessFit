@@ -153,7 +153,7 @@ object Interpreter {
       case RightTree(e) => RightTree(smallStep(e))
 
       case _ =>
-        rc.reporter.fatalError(s"Evaluation is stuck on: $e")
+        rc.reporter.fatalError(s"Evaluation is stuck on: ${Printer.exprAsString(e)}")
     }
   }
 
