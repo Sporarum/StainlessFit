@@ -151,9 +151,9 @@ object PartialEvaluator {
 
   def evaluate(e: Tree)(implicit rc: RunContext): Tree = {
     
-    //println("=============================================")
-    //Printer.exprInfo(e)
-    //Thread.sleep(1000)
+    println("=============================================")
+    Printer.exprInfo(e)
+    Thread.sleep(1000)
     
     smallStep(e)(rc) match {
       case None => e
