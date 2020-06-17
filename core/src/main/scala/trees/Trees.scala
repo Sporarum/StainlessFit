@@ -1004,6 +1004,37 @@ object Tree {
       }
     }
   }
+
+  def map(t: Tree, p: Tree => Option[Tree])(implicit rc: RunContext): Tree = {
+    p(t) getOrElse {
+      val subtrees = t.subTrees()
+      t.newSubTrees(subtrees.map(map(_,p)))
+    }
+  }
+
+  def freshenIdentifiers(t: Tree)(implicit rc: RunContext): Tree = {
+    def discover(t: Tree): List[Identifier] = {
+      t match {
+        case Var(id) => 
+          List(id)
+        case _ =>
+          t.subTrees().flatMap(discover(_))
+      }
+    }
+
+    def update(t: Tree, idMap: Map[Identifier, Identifier]): Option[Tree] = {
+      t match {
+        case Var(id) => 
+          Some( Var(idMap(id)) )
+        case _ =>
+          None 
+      }
+    }
+
+    val ids = discover(t)
+    val idMap = ids.map(id => (id, id.freshen())).toMap
+    map(t, update(_, idMap))
+  }
 }
 
 case class Identifier(id: Int, name: String) extends Positioned {
@@ -1134,6 +1165,9 @@ sealed abstract class Tree extends Positioned {
 
   def subTrees(): List[Tree] = Tree.subTrees(this)
   def newSubTrees(args: List[Tree])(implicit rc: RunContext) = Tree.newSubTrees(this, args)
+
+  def map(p: Tree => Option[Tree])(implicit rc: RunContext): Tree = Tree.map(this, p)
+  def freshenIdentifiers()(implicit rc: RunContext): Tree = Tree.freshenIdentifiers(this)
 }
 
 case class Var(id: Identifier) extends Tree {
