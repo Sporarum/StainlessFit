@@ -18,5 +18,4 @@ fun fold[X][Y](f [Y => X => Y]) (acc [Y]) (xs [List[X]]) [returns Y]= {
   }
 }
 fun plus (x [Nat]) (y [Nat]) = { x + y }
-val list = cons[Nat] 1 (cons[Nat] 2 (cons[Nat] 3 (nil[Nat]))) ;
 fold [Nat] [Nat] plus

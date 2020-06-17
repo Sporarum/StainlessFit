@@ -1012,10 +1012,10 @@ object Tree {
     }
   }
 
-  def freshenIdentifiers(t: Tree)(implicit rc: RunContext): Tree = {
+  def freshenIdentifiers(t: Tree, extraLocalVars: List[Identifier] = List())(implicit rc: RunContext): Tree = {
     def discover(t: Tree): List[Identifier] = {
       t match {
-        case Var(id) => 
+        case Bind(id, _) => 
           List(id)
         case _ =>
           t.subTrees().flatMap(discover(_))
@@ -1025,15 +1025,19 @@ object Tree {
     def update(t: Tree, idMap: Map[Identifier, Identifier]): Option[Tree] = {
       t match {
         case Var(id) => 
-          Some( Var(idMap(id)) )
+          (idMap get id).map( Var(_) )
         case _ =>
           None 
       }
     }
-
-    val ids = discover(t)
-    val idMap = ids.map(id => (id, id.freshen())).toMap
-    map(t, update(_, idMap))
+    val debug = false //TODO: Remove this
+    if(debug){
+      t
+    }else{
+      val ids = extraLocalVars ++ discover(t)
+      val idMap = ids.map(id => (id, id.freshen())).toMap
+      map(t, update(_, idMap))
+    }
   }
 }
 
@@ -1167,7 +1171,7 @@ sealed abstract class Tree extends Positioned {
   def newSubTrees(args: List[Tree])(implicit rc: RunContext) = Tree.newSubTrees(this, args)
 
   def map(p: Tree => Option[Tree])(implicit rc: RunContext): Tree = Tree.map(this, p)
-  def freshenIdentifiers()(implicit rc: RunContext): Tree = Tree.freshenIdentifiers(this)
+  def freshenIdentifiers(extraLocalVars: List[Identifier] = List())(implicit rc: RunContext): Tree = Tree.freshenIdentifiers(this, extraLocalVars)
 }
 
 case class Var(id: Identifier) extends Tree {
